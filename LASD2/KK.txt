@@ -1,0 +1,101 @@
+/*
+ * LASD2.c
+ * Created: 06/03/2021 11:46:37
+ * Author : Gabrielle Pereira Barbosa
+ * Matricula 118110183
+ */ 
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/interrupt.h>
+#include "nokia5110.h"
+
+uint8_t FreqRespiracao = 5; 
+
+//altera o tempo de delay e verifica se o valor está dentro dos limites 
+void limita (uint8_t *Freq)
+{
+ if ((*Freq) > 30)
+	 *Freq = 30; 
+ else if ((*Freq) < 5)
+ {
+	 *Freq = 5;
+ }
+}
+
+//gera o tempo do periodo
+double timing_google (uint8_t Freq)
+{
+	return 60000.0/(Freq*16); 
+	//utilizei 60000 segundos pq quando for passar pra ms não terá alteração no valor
+}
+
+//cria um delay da quantidade do periodo pois a função _delay_ms não quis aceitar um valor que variasse conforme as interações do while
+void loopii (double tempinho)
+{
+	for (int i= 0; i <= tempinho; i++)
+	{
+		_delay_ms(1); 
+	}
+}
+
+void funcao_led (uint8_t *Freq, int *a)
+{
+	int i; 
+	double tempo; 
+	for (i =0; i <8; i++)
+	{
+	if (*a)
+		PORTB |= 0b00000001 << i;
+	else
+	{
+		PORTB &= 0b01111111 >> i;
+	}
+	tempo = timing_google(*Freq);
+	PORTC = *Freq;
+	loopii(tempo);
+	}
+	//nega o valor de a pra chegar na proxima interacao do for.
+	*a = !(*a); 
+
+}
+//Funções de interrupção
+ISR(INT0_vect)
+{
+	FreqRespiracao +=1; 
+	limita(&FreqRespiracao);
+}
+ISR(INT1_vect)
+{
+	FreqRespiracao -= 1; 
+	limita(&FreqRespiracao); 
+}
+int main(void)
+{
+	int a = 1;
+	
+	 
+	DDRB = 0b11111111; // todos os pinos B como saídas
+	DDRD = 0b00000000; // todos os pinos D como entradas
+
+	PORTD = 0b11111111; // habilita resistores pullup
+	 
+	EICRA = 0b00001010; //interrupçao INT0 e INT1  
+	EIMSK = 0b00000011;
+	sei();
+	
+	 
+	nokia_lcd_init();
+    nokia_lcd_clear();
+    nokia_lcd_write_string("IT'S WORKING!",1);
+    nokia_lcd_set_cursor(0, 10);
+    nokia_lcd_write_string("Nice!", 3);
+    nokia_lcd_render();
+	
+	
+    while (1) 
+    { 
+		funcao_led(&FreqRespiracao, &a);
+	}
+}
+
